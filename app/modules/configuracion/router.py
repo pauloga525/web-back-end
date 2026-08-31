@@ -9,6 +9,12 @@ from app.modules.imagenes.service import process_and_store_image
 
 router = APIRouter(prefix="/configuracion", tags=["Configuracion"])
 
+# Cada 'clave' tiene su propia forma de JSON (home, nosotros, admisiones, ...),
+# por lo que no se modela con un DTO fijo por campo. Aun así se valida que sea
+# un objeto JSON (no un array/string/null suelto) y se limita su tamaño para
+# evitar payloads abusivos.
+MAX_CONFIG_BYTES = 2 * 1024 * 1024  # 2 MB
+
 
 @router.get("")
 async def list_claves(current_user: dict = Depends(get_current_user)):
@@ -40,7 +46,14 @@ async def upsert_config(clave: str, request: Request, current_user: dict = Depen
     col = get_collection("configuraciones")
     now = datetime.now(timezone.utc)
 
+    body = await request.body()
+    if len(body) > MAX_CONFIG_BYTES:
+        raise HTTPException(status_code=413, detail="La configuración supera el límite de tamaño permitido")
+
     datos = await request.json()
+    if not isinstance(datos, dict):
+        raise HTTPException(status_code=422, detail="El cuerpo debe ser un objeto JSON")
+
     await col.update_one(
         {"clave": clave},
         {"$set": {"datos": datos, "updatedAt": now}, "$setOnInsert": {"clave": clave, "createdAt": now}},

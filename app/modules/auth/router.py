@@ -1,12 +1,18 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel
 from app.core.database import get_collection
 from app.core.security import verify_password, create_access_token, decode_token, hash_password
 from app.core.config import settings
 from app.shared.dependencies import get_current_user
 from app.shared.responses import serialize_doc
+from app.shared.rate_limit import SlidingWindowLimiter
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+_login_limiter = SlidingWindowLimiter(
+    max_attempts=settings.LOGIN_MAX_ATTEMPTS,
+    window_seconds=settings.LOGIN_WINDOW_SECONDS,
+)
 
 
 class LoginDto(BaseModel):
@@ -14,8 +20,26 @@ class LoginDto(BaseModel):
     password: str
 
 
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
 @router.post("/login")
-async def login(dto: LoginDto):
+async def login(dto: LoginDto, request: Request):
+    ip = _client_ip(request)
+    limiter_key = f"{ip}:{dto.username.lower()}"
+
+    blocked, retry_after = _login_limiter.is_blocked(limiter_key)
+    if blocked:
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiados intentos fallidos. Intenta de nuevo más tarde.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     col = get_collection("users")
     user = await col.find_one({
         "$or": [
@@ -25,10 +49,13 @@ async def login(dto: LoginDto):
     })
 
     if not user or not verify_password(dto.password, user.get("password", "")):
+        _login_limiter.register_attempt(limiter_key)
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
 
     if user.get("status") == "inactive":
         raise HTTPException(status_code=403, detail="Usuario inactivo")
+
+    _login_limiter.reset(limiter_key)
 
     token = create_access_token({
         "userId": str(user["_id"]),

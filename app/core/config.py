@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     SEED_ADMIN_PASSWORD: str = "Admin1234!"
     SEED_ADMIN_EMAIL: str = "admin@uets.edu.ec"
 
+    LOGIN_MAX_ATTEMPTS: int = 5
+    LOGIN_WINDOW_SECONDS: int = 900
+
     class Config:
         env_file = ".env"
         extra = "ignore"

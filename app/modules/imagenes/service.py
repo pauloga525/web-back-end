@@ -1,13 +1,47 @@
 import io
+import ipaddress
+import socket
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from PIL import Image
 import httpx
+from fastapi import HTTPException
 from app.core.database import get_gridfs
 from app.core.config import settings
 
 
 MAX_DIM = 1920
 WEBP_QUALITY = 82
+
+ALLOWED_URL_SCHEMES = {"http", "https"}
+MAX_REDIRECTS = 5
+
+
+def _is_safe_host(hostname: str) -> bool:
+    """Rechaza hosts que resuelvan a rangos de IP privados/loopback/link-local/reservados,
+    para evitar que el servidor sea usado como proxy hacia su propia red (SSRF)."""
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        return False
+    if not infos:
+        return False
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return False
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+            return False
+    return True
+
+
+def _assert_safe_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in ALLOWED_URL_SCHEMES or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="URL inválida o esquema no permitido")
+    if not _is_safe_host(parsed.hostname):
+        raise HTTPException(status_code=400, detail="No se permite acceder a esa dirección")
 
 
 async def process_and_store_image(data: bytes, filename: str, content_type: str) -> dict:
@@ -41,12 +75,26 @@ async def process_and_store_image(data: bytes, filename: str, content_type: str)
 
 
 async def fetch_and_store_image(source_url: str) -> dict:
+    _assert_safe_url(source_url)
+
+    url = source_url
     async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(source_url, follow_redirects=True)
-        resp.raise_for_status()
+        for _ in range(MAX_REDIRECTS):
+            resp = await client.get(url, follow_redirects=False)
+            if resp.is_redirect:
+                location = resp.headers.get("location")
+                if not location:
+                    raise HTTPException(status_code=400, detail="Redirección sin destino")
+                url = str(httpx.URL(url).join(location))
+                _assert_safe_url(url)
+                continue
+            resp.raise_for_status()
+            break
+        else:
+            raise HTTPException(status_code=400, detail="Demasiadas redirecciones")
 
     content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0].strip()
-    filename = source_url.split("/")[-1].split("?")[0] or "imagen-remota"
+    filename = url.split("/")[-1].split("?")[0] or "imagen-remota"
 
     return await process_and_store_image(resp.content, filename, content_type)
 

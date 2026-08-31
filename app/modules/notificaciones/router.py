@@ -43,16 +43,25 @@ async def create(dto: CreateNotificacionDto, current_user: dict = Depends(requir
     return serialize_doc(doc)
 
 
+def _assert_owns_notificacion(doc: dict, user_id: str) -> None:
+    """Una notificación pertenece al usuario si es suya o es broadcast (usuario "")."""
+    if doc.get("usuario") not in ("", user_id):
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta notificación")
+
+
 @router.patch("/{id}/leer")
 async def marcar_leida(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("notificaciones")
     try:
-        await col.update_one({"_id": ObjectId(id)}, {"$set": {"leido": True}})
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
         raise HTTPException(status_code=400, detail="ID inválido")
     if not doc:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    _assert_owns_notificacion(doc, current_user.get("id"))
+
+    await col.update_one({"_id": ObjectId(id)}, {"$set": {"leido": True}})
+    doc = await col.find_one({"_id": ObjectId(id)})
     return serialize_doc(doc)
 
 
@@ -71,10 +80,13 @@ async def marcar_todas_leidas(current_user: dict = Depends(get_current_user)):
 async def delete(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("notificaciones")
     try:
-        result = await col.delete_one({"_id": ObjectId(id)})
+        doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
         raise HTTPException(status_code=400, detail="ID inválido")
-    if result.deleted_count == 0:
+    if not doc:
         raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    _assert_owns_notificacion(doc, current_user.get("id"))
+
+    await col.delete_one({"_id": ObjectId(id)})
     return {"message": "Notificación eliminada"}
 

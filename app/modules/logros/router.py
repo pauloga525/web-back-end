@@ -101,10 +101,11 @@ async def create(dto: CreateLogroDto, current_user: dict = Depends(require_roles
     result = await col.insert_one(data)
     doc = await col.find_one({"_id": result.inserted_id})
     out = serialize_doc(doc)
-    try:
-        await notify_created("logro", out)
-    except Exception:
-        pass
+    if out.get("publicado"):
+        try:
+            await notify_created("logro", out)
+        except Exception:
+            pass
     return out
 
 
@@ -121,10 +122,11 @@ async def update(id: str, dto: UpdateLogroDto, current_user: dict = Depends(requ
     if not doc:
         raise HTTPException(status_code=404, detail="Logro no encontrado")
     out = serialize_doc(doc)
-    try:
-        await notify_updated("logro", out)
-    except Exception:
-        pass
+    if out.get("publicado"):
+        try:
+            await notify_updated("logro", out)
+        except Exception:
+            pass
     return out
 
 

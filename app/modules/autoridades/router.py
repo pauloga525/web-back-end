@@ -95,10 +95,11 @@ async def create(dto: CreateAutoridadDto, current_user: dict = Depends(require_r
     result = await col.insert_one(data)
     doc = await col.find_one({"_id": result.inserted_id})
     out = serialize_doc(doc)
-    try:
-        await notify_created("autoridad", out)
-    except Exception:
-        pass
+    if out.get("publicada"):
+        try:
+            await notify_created("autoridad", out)
+        except Exception:
+            pass
     return out
 
 
@@ -115,10 +116,11 @@ async def update(id: str, dto: UpdateAutoridadDto, current_user: dict = Depends(
     if not doc:
         raise HTTPException(status_code=404, detail="Autoridad no encontrada")
     out = serialize_doc(doc)
-    try:
-        await notify_updated("autoridad", out)
-    except Exception:
-        pass
+    if out.get("publicada"):
+        try:
+            await notify_updated("autoridad", out)
+        except Exception:
+            pass
     return out
 
 

@@ -1,9 +1,9 @@
 ﻿from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 from bson import ObjectId
 from app.core.database import get_collection
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.shared.dependencies import get_current_user, require_roles
 from app.shared.responses import serialize_doc, serialize_list
 
@@ -31,6 +31,11 @@ class UpdateUserDto(BaseModel):
     rol: Optional[str] = None
     status: Optional[str] = None
     avatar: Optional[str] = None
+
+
+class ChangePasswordDto(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6)
 
 
 @router.get("")
@@ -75,6 +80,9 @@ async def create_user(dto: CreateUserDto, current_user: dict = Depends(require_r
 
 @router.put("/{id}")
 async def update_user(id: str, dto: UpdateUserDto, current_user: dict = Depends(require_roles("super_admin", "admin"))):
+    if dto.rol is not None and current_user.get("rol") != "super_admin":
+        raise HTTPException(status_code=403, detail="Solo un super_admin puede cambiar el rol de un usuario")
+
     col = get_collection("users")
     data = {k: v for k, v in dto.model_dump().items() if v is not None}
     if "password" in data:
@@ -91,6 +99,19 @@ async def update_user(id: str, dto: UpdateUserDto, current_user: dict = Depends(
     out = serialize_doc(doc)
     out.pop("password", None)
     return out
+
+
+@router.post("/me/password")
+async def change_own_password(dto: ChangePasswordDto, current_user: dict = Depends(get_current_user)):
+    if not verify_password(dto.current_password, current_user.get("password", "")):
+        raise HTTPException(status_code=400, detail="La contraseña actual no es correcta")
+
+    col = get_collection("users")
+    await col.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {"password": hash_password(dto.new_password)}},
+    )
+    return {"message": "Contraseña actualizada"}
 
 
 @router.delete("/{id}")

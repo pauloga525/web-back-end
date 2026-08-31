@@ -161,10 +161,11 @@ async def create(dto: CreateEventoDto, current_user: dict = Depends(require_role
     result = await col.insert_one(data)
     doc = await col.find_one({"_id": result.inserted_id})
     out = serialize_doc(doc)
-    try:
-        await notify_created("evento", out)
-    except Exception:
-        pass
+    if out.get("publicado"):
+        try:
+            await notify_created("evento", out)
+        except Exception:
+            pass
     return out
 
 
@@ -181,10 +182,11 @@ async def update(id: str, dto: UpdateEventoDto, current_user: dict = Depends(req
     if not doc:
         raise HTTPException(status_code=404, detail="Evento no encontrado")
     out = serialize_doc(doc)
-    try:
-        await notify_updated("evento", out)
-    except Exception:
-        pass
+    if out.get("publicado"):
+        try:
+            await notify_updated("evento", out)
+        except Exception:
+            pass
     return out
 
 
@@ -216,10 +218,11 @@ async def set_destacado(id: str, current_user: dict = Depends(require_roles("sup
     if not doc:
         raise HTTPException(status_code=404, detail="Evento no encontrado")
     out = serialize_doc(doc)
-    try:
-        await notify_updated("evento", out)
-    except Exception:
-        pass
+    if out.get("publicado"):
+        try:
+            await notify_updated("evento", out)
+        except Exception:
+            pass
     return out
 
 
@@ -236,8 +239,9 @@ async def toggle_publicado(id: str, current_user: dict = Depends(require_roles("
     await col.update_one({"_id": ObjectId(id)}, {"$set": {"publicado": nuevo_estado, "updatedAt": datetime.now(timezone.utc)}})
     doc = await col.find_one({"_id": ObjectId(id)})
     out = serialize_doc(doc)
-    try:
-        await notify_updated("evento", out)
-    except Exception:
-        pass
+    if out.get("publicado"):
+        try:
+            await notify_updated("evento", out)
+        except Exception:
+            pass
     return out

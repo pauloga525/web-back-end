@@ -43,7 +43,7 @@ class CreateNoticiaDto(BaseModel):
     date: Optional[str] = ""
     readTime: Optional[str] = ""
     content: Optional[str] = ""
-    images: Optional[List[str]] = []
+    images: Optional[List[Any]] = []  # objetos {id, url, alt} del editor de galería, no strings sueltos
     tags: Optional[List[str]] = []
     publicada: Optional[bool] = False
 
@@ -127,10 +127,11 @@ async def create(dto: CreateNoticiaDto, current_user: dict = Depends(require_rol
     result = await col.insert_one(data)
     doc = await col.find_one({"_id": result.inserted_id})
     out = serialize_doc(doc)
-    try:
-        await notify_created("noticia", out)
-    except Exception:
-        pass
+    if out.get("publicada"):
+        try:
+            await notify_created("noticia", out)
+        except Exception:
+            pass
     return out
 
 
@@ -147,10 +148,11 @@ async def update(id: str, dto: UpdateNoticiaDto, current_user: dict = Depends(re
     if not doc:
         raise HTTPException(status_code=404, detail="Noticia no encontrada")
     out = serialize_doc(doc)
-    try:
-        await notify_updated("noticia", out)
-    except Exception:
-        pass
+    if out.get("publicada"):
+        try:
+            await notify_updated("noticia", out)
+        except Exception:
+            pass
     return out
 
 

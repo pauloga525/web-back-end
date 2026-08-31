@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, HTTPException, Depends, Request
+﻿from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List, Any
 from bson import ObjectId
@@ -64,6 +64,32 @@ class CreateEspecialidadDto(BaseModel):
     orden: Optional[int] = 0
 
 
+class UpdateEspecialidadDto(BaseModel):
+    icono: Optional[str] = None
+    color: Optional[str] = None
+    codigo: Optional[str] = None
+    titulo: Optional[str] = None
+    subtitulo: Optional[str] = None
+    descripcion: Optional[str] = None
+    tituloAObtener: Optional[str] = None
+    duracion: Optional[str] = None
+    nivel: Optional[str] = None
+    imagenHero: Optional[str] = None
+    imagenSecundaria: Optional[str] = None
+    videoUrl: Optional[str] = None
+    malla: Optional[Any] = None
+    coordinador: Optional[str] = None
+    perfilCoordinador: Optional[Any] = None
+    perfilEstudiante: Optional[Any] = None
+    salidasProfesionales: Optional[List[Any]] = None
+    instalaciones: Optional[Any] = None
+    admisiones: Optional[Any] = None
+    testimonios: Optional[List[Any]] = None
+    publicacion: Optional[Any] = None
+    orden: Optional[int] = None
+    slug: Optional[str] = None
+
+
 # ─── Rutas públicas ────────────────────────────────────────────────────────────
 
 @router.get("/publicas")
@@ -117,17 +143,18 @@ async def create(dto: CreateEspecialidadDto, current_user: dict = Depends(requir
     result = await col.insert_one(data)
     doc = await col.find_one({"_id": result.inserted_id})
     out = serialize_doc(doc)
-    try:
-        await notify_created("especialidad", out)
-    except Exception:
-        pass
+    if (out.get("publicacion") or {}).get("publicado"):
+        try:
+            await notify_created("especialidad", out)
+        except Exception:
+            pass
     return out
 
 
 @router.put("/{id}")
-async def update(id: str, request: Request, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
+async def update(id: str, dto: UpdateEspecialidadDto, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("especialidades")
-    dto = clean_update(await request.json())
+    dto = clean_update(dto.model_dump(exclude_none=True))
     # Si el título cambió y no se envía slug explícito, regenerar
     if "titulo" in dto and not dto.get("slug"):
         try:
@@ -144,10 +171,11 @@ async def update(id: str, request: Request, current_user: dict = Depends(require
     if not doc:
         raise HTTPException(status_code=404, detail="Especialidad no encontrada")
     out = serialize_doc(doc)
-    try:
-        await notify_updated("especialidad", out)
-    except Exception:
-        pass
+    if (out.get("publicacion") or {}).get("publicado"):
+        try:
+            await notify_updated("especialidad", out)
+        except Exception:
+            pass
     return out
 
 

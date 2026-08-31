@@ -2,8 +2,6 @@ import socketio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-import os
 
 from app.core.config import settings
 from app.core.database import connect_db, close_db
@@ -23,6 +21,8 @@ from app.modules.actividad.router import router as actividad_router
 from app.modules.notificaciones.router import router as notificaciones_router
 from app.modules.configuracion.router import router as configuracion_router
 from app.modules.recursos.router import router as recursos_router
+from app.modules.uniformes.router import router as uniformes_router
+from app.modules.consejo.router import router as consejo_router
 from app.modules.imagenes.router import router as imagenes_router
 
 
@@ -98,13 +98,12 @@ app.include_router(actividad_router, prefix=PREFIX)
 app.include_router(notificaciones_router, prefix=PREFIX)
 app.include_router(configuracion_router, prefix=PREFIX)
 app.include_router(recursos_router, prefix=PREFIX)
+app.include_router(uniformes_router, prefix=PREFIX)
+app.include_router(consejo_router, prefix=PREFIX)
 app.include_router(imagenes_router, prefix=PREFIX)
 
-# ─── Static files ─────────────────────────────────────────────────────────────
-
-uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads")
-os.makedirs(uploads_dir, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+# Nota: las imágenes se sirven vía GridFS (/imagenes/gridfs/{id}), no desde disco.
+# El mount estático de /uploads y su carpeta local eran código muerto (nada los usaba).
 
 # ─── Health check ─────────────────────────────────────────────────────────────
 
