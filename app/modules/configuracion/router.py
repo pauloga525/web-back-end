@@ -51,8 +51,13 @@ async def upsert_config(clave: str, request: Request, current_user: dict = Depen
         raise HTTPException(status_code=413, detail="La configuración supera el límite de tamaño permitido")
 
     datos = await request.json()
-    if not isinstance(datos, dict):
-        raise HTTPException(status_code=422, detail="El cuerpo debe ser un objeto JSON")
+    # Casi todas las 'claves' guardan un objeto, pero algunas (kpis,
+    # plataformas) son intencionalmente un arreglo en la raíz -- antes esto
+    # se rechazaba con 422 para *cualquier* arreglo, así que esas dos
+    # pantallas del admin nunca lograban guardar nada (el PUT fallaba en
+    # silencio y la config jamás llegaba a crearse en la base de datos).
+    if not isinstance(datos, (dict, list)):
+        raise HTTPException(status_code=422, detail="El cuerpo debe ser un objeto o arreglo JSON")
 
     await col.update_one(
         {"clave": clave},
