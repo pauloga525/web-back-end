@@ -50,7 +50,10 @@ async def limpiar(current_user: dict = Depends(require_roles("super_admin"))):
     return {"deleted": result.deleted_count}
 
 
-@router.delete("/{id}")
+@router.delete(
+    "/{id}",
+    responses={400: {"description": "ID inválido"}, 404: {"description": "Actividad no encontrada"}},
+)
 async def delete(id: str, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     col = get_collection("actividad")
     try:

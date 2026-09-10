@@ -6,7 +6,7 @@ _db = None
 _gridfs: AsyncIOMotorGridFSBucket = None
 
 
-async def connect_db():
+def connect_db():
     global _client, _db, _gridfs
     _client = AsyncIOMotorClient(settings.MONGODB_URI)
     _db = _client.get_default_database()
@@ -14,7 +14,7 @@ async def connect_db():
     print(f"MongoDB conectado: {settings.MONGODB_URI}")
 
 
-async def close_db():
+def close_db():
     global _client
     if _client:
         _client.close()

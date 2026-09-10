@@ -10,6 +10,9 @@ from app.modules.websocket.manager import notify_created, notify_updated, notify
 
 router = APIRouter(prefix="/noticias", tags=["Noticias"])
 
+ID_INVALIDO = "ID inválido"
+NOTICIA_NO_ENCONTRADA = "Noticia no encontrada"
+
 
 class UpdateNoticiaDto(BaseModel):
     model_config = ConfigDict(extra='ignore')
@@ -55,7 +58,7 @@ async def find_publicas(
     q: Optional[str] = Query(None),
     categoria: Optional[str] = Query(None),
     pagina: int = Query(1),
-    porPagina: int = Query(10),
+    por_pagina: int = Query(10, alias="porPagina"),
 ):
     col = get_collection("noticias")
     query: dict = {"publicada": True}
@@ -67,14 +70,14 @@ async def find_publicas(
     if categoria:
         query["category"] = categoria
     total = await col.count_documents(query)
-    skip = (pagina - 1) * porPagina
-    docs = await col.find(query).sort("createdAt", -1).skip(skip).limit(porPagina).to_list(None)
+    skip = (pagina - 1) * por_pagina
+    docs = await col.find(query).sort("createdAt", -1).skip(skip).limit(por_pagina).to_list(None)
     return {
         "items": serialize_list(docs),
         "total": total,
         "pagina": pagina,
-        "porPagina": porPagina,
-        "totalPaginas": (total + porPagina - 1) // porPagina,
+        "porPagina": por_pagina,
+        "totalPaginas": (total + por_pagina - 1) // por_pagina,
     }
 
 
@@ -85,15 +88,18 @@ async def find_destacadas():
     return serialize_list(docs)
 
 
-@router.get("/publica/{id}")
+@router.get(
+    "/publica/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": NOTICIA_NO_ENCONTRADA}},
+)
 async def find_publica_by_id(id: str):
     col = get_collection("noticias")
     try:
         doc = await col.find_one({"_id": ObjectId(id), "publicada": True})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Noticia no encontrada")
+        raise HTTPException(status_code=404, detail=NOTICIA_NO_ENCONTRADA)
     return serialize_doc(doc)
 
 
@@ -106,15 +112,18 @@ async def find_all(current_user: dict = Depends(get_current_user)):
     return serialize_list(docs)
 
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": NOTICIA_NO_ENCONTRADA}},
+)
 async def find_one(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("noticias")
     try:
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Noticia no encontrada")
+        raise HTTPException(status_code=404, detail=NOTICIA_NO_ENCONTRADA)
     return serialize_doc(doc)
 
 
@@ -134,7 +143,10 @@ async def create(dto: CreateNoticiaDto, current_user: dict = Depends(require_rol
     return out
 
 
-@router.put("/{id}")
+@router.put(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": NOTICIA_NO_ENCONTRADA}},
+)
 async def update(id: str, dto: UpdateNoticiaDto, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("noticias")
     data = clean_update(dto.model_dump(exclude_none=True))
@@ -143,9 +155,9 @@ async def update(id: str, dto: UpdateNoticiaDto, current_user: dict = Depends(re
         await col.update_one({"_id": ObjectId(id)}, {"$set": data})
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Noticia no encontrada")
+        raise HTTPException(status_code=404, detail=NOTICIA_NO_ENCONTRADA)
     out = serialize_doc(doc)
     try:
         await notify_updated("noticia", out)
@@ -154,15 +166,18 @@ async def update(id: str, dto: UpdateNoticiaDto, current_user: dict = Depends(re
     return out
 
 
-@router.delete("/{id}")
+@router.delete(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": NOTICIA_NO_ENCONTRADA}},
+)
 async def delete(id: str, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     col = get_collection("noticias")
     try:
         result = await col.delete_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Noticia no encontrada")
+        raise HTTPException(status_code=404, detail=NOTICIA_NO_ENCONTRADA)
     try:
         await notify_deleted("noticia", id)
     except Exception:

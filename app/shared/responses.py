@@ -1,27 +1,28 @@
 from bson import ObjectId
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 _PROTECTED = {"_id", "createdAt"}
 
 
-def serialize_doc(doc: dict) -> dict:
+def _serialize_value(v: Any) -> Any:
+    if isinstance(v, ObjectId):
+        return str(v)
+    if isinstance(v, datetime):
+        return v.isoformat()
+    if isinstance(v, list):
+        return [_serialize_value(i) for i in v]
+    if isinstance(v, dict):
+        return serialize_doc(v)
+    return v
+
+
+def serialize_doc(doc: Optional[dict]) -> Optional[dict]:
     if doc is None:
         return None
     result = {}
     for k, v in doc.items():
-        if k == "_id":
-            result["_id"] = str(v)
-        elif isinstance(v, ObjectId):
-            result[k] = str(v)
-        elif isinstance(v, datetime):
-            result[k] = v.isoformat()
-        elif isinstance(v, list):
-            result[k] = [serialize_doc(i) if isinstance(i, dict) else (str(i) if isinstance(i, ObjectId) else i) for i in v]
-        elif isinstance(v, dict):
-            result[k] = serialize_doc(v)
-        else:
-            result[k] = v
+        result[k] = str(v) if k == "_id" else _serialize_value(v)
     return result
 
 

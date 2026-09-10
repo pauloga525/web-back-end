@@ -4,6 +4,7 @@ import os
 
 
 class Settings(BaseSettings):
+    HOST: str = "127.0.0.1"
     PORT: int = 8000
     NODE_ENV: str = "development"
     BACKEND_URL: str = "http://localhost:8000"

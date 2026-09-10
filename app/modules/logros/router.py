@@ -10,6 +10,9 @@ from app.modules.websocket.manager import notify_created, notify_updated, notify
 
 router = APIRouter(prefix="/logros", tags=["Logros"])
 
+ID_INVALIDO = "ID inválido"
+LOGRO_NO_ENCONTRADO = "Logro no encontrado"
+
 
 class UpdateLogroDto(BaseModel):
     model_config = ConfigDict(extra='ignore')
@@ -59,15 +62,18 @@ async def find_by_categoria(cat: str):
     return serialize_list(docs)
 
 
-@router.get("/publico/{id}")
+@router.get(
+    "/publico/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": LOGRO_NO_ENCONTRADO}},
+)
 async def find_publico(id: str):
     col = get_collection("logros")
     try:
         doc = await col.find_one({"_id": ObjectId(id), "publicado": True})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Logro no encontrado")
+        raise HTTPException(status_code=404, detail=LOGRO_NO_ENCONTRADO)
     return serialize_doc(doc)
 
 
@@ -80,15 +86,18 @@ async def find_all(current_user: dict = Depends(get_current_user)):
     return serialize_list(docs)
 
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": LOGRO_NO_ENCONTRADO}},
+)
 async def find_one(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("logros")
     try:
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Logro no encontrado")
+        raise HTTPException(status_code=404, detail=LOGRO_NO_ENCONTRADO)
     return serialize_doc(doc)
 
 
@@ -108,7 +117,10 @@ async def create(dto: CreateLogroDto, current_user: dict = Depends(require_roles
     return out
 
 
-@router.put("/{id}")
+@router.put(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": LOGRO_NO_ENCONTRADO}},
+)
 async def update(id: str, dto: UpdateLogroDto, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("logros")
     data = clean_update(dto.model_dump(exclude_none=True))
@@ -117,9 +129,9 @@ async def update(id: str, dto: UpdateLogroDto, current_user: dict = Depends(requ
         await col.update_one({"_id": ObjectId(id)}, {"$set": data})
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Logro no encontrado")
+        raise HTTPException(status_code=404, detail=LOGRO_NO_ENCONTRADO)
     out = serialize_doc(doc)
     try:
         await notify_updated("logro", out)
@@ -128,15 +140,18 @@ async def update(id: str, dto: UpdateLogroDto, current_user: dict = Depends(requ
     return out
 
 
-@router.delete("/{id}")
+@router.delete(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": LOGRO_NO_ENCONTRADO}},
+)
 async def delete(id: str, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     col = get_collection("logros")
     try:
         result = await col.delete_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Logro no encontrado")
+        raise HTTPException(status_code=404, detail=LOGRO_NO_ENCONTRADO)
     try:
         await notify_deleted("logro", id)
     except Exception:

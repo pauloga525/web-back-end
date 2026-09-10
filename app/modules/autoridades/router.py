@@ -10,6 +10,9 @@ from app.modules.websocket.manager import notify_created, notify_updated, notify
 
 router = APIRouter(prefix="/autoridades", tags=["Autoridades"])
 
+ID_INVALIDO = "ID inválido"
+AUTORIDAD_NO_ENCONTRADA = "Autoridad no encontrada"
+
 
 class UpdateAutoridadDto(BaseModel):
     model_config = ConfigDict(extra='ignore')
@@ -53,15 +56,18 @@ async def find_publicas():
     return serialize_list(docs)
 
 
-@router.get("/publica/{id}")
+@router.get(
+    "/publica/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": AUTORIDAD_NO_ENCONTRADA}},
+)
 async def find_publica(id: str):
     col = get_collection("autoridades")
     try:
         doc = await col.find_one({"_id": ObjectId(id), "publicada": True})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Autoridad no encontrada")
+        raise HTTPException(status_code=404, detail=AUTORIDAD_NO_ENCONTRADA)
     return serialize_doc(doc)
 
 
@@ -74,15 +80,18 @@ async def find_all(current_user: dict = Depends(get_current_user)):
     return serialize_list(docs)
 
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": AUTORIDAD_NO_ENCONTRADA}},
+)
 async def find_one(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("autoridades")
     try:
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Autoridad no encontrada")
+        raise HTTPException(status_code=404, detail=AUTORIDAD_NO_ENCONTRADA)
     return serialize_doc(doc)
 
 
@@ -102,7 +111,10 @@ async def create(dto: CreateAutoridadDto, current_user: dict = Depends(require_r
     return out
 
 
-@router.put("/{id}")
+@router.put(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": AUTORIDAD_NO_ENCONTRADA}},
+)
 async def update(id: str, dto: UpdateAutoridadDto, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("autoridades")
     data = clean_update(dto.model_dump(exclude_none=True))
@@ -111,9 +123,9 @@ async def update(id: str, dto: UpdateAutoridadDto, current_user: dict = Depends(
         await col.update_one({"_id": ObjectId(id)}, {"$set": data})
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Autoridad no encontrada")
+        raise HTTPException(status_code=404, detail=AUTORIDAD_NO_ENCONTRADA)
     out = serialize_doc(doc)
     try:
         await notify_updated("autoridad", out)
@@ -122,15 +134,18 @@ async def update(id: str, dto: UpdateAutoridadDto, current_user: dict = Depends(
     return out
 
 
-@router.delete("/{id}")
+@router.delete(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": AUTORIDAD_NO_ENCONTRADA}},
+)
 async def delete(id: str, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     col = get_collection("autoridades")
     try:
         result = await col.delete_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Autoridad no encontrada")
+        raise HTTPException(status_code=404, detail=AUTORIDAD_NO_ENCONTRADA)
     try:
         await notify_deleted("autoridad", id)
     except Exception:

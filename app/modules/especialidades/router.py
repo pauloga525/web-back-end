@@ -33,6 +33,9 @@ async def _unique_slug(col, base: str, exclude_id=None) -> str:
 
 router = APIRouter(prefix="/especialidades", tags=["Especialidades"])
 
+ID_INVALIDO = "ID inválido"
+ESPECIALIDAD_NO_ENCONTRADA = "Especialidad no encontrada"
+
 
 class PublicacionInfo(BaseModel):
     publicada: Optional[bool] = False
@@ -73,15 +76,18 @@ async def find_publicas():
     return serialize_list(docs)
 
 
-@router.get("/publicas/{id}")
+@router.get(
+    "/publicas/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": ESPECIALIDAD_NO_ENCONTRADA}},
+)
 async def find_publica(id: str):
     col = get_collection("especialidades")
     try:
         doc = await col.find_one({"_id": ObjectId(id), "publicacion.publicado": True})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Especialidad no encontrada")
+        raise HTTPException(status_code=404, detail=ESPECIALIDAD_NO_ENCONTRADA)
     return serialize_doc(doc)
 
 
@@ -94,15 +100,18 @@ async def find_all(current_user: dict = Depends(get_current_user)):
     return serialize_list(docs)
 
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": ESPECIALIDAD_NO_ENCONTRADA}},
+)
 async def find_one(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("especialidades")
     try:
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Especialidad no encontrada")
+        raise HTTPException(status_code=404, detail=ESPECIALIDAD_NO_ENCONTRADA)
     return serialize_doc(doc)
 
 
@@ -124,7 +133,10 @@ async def create(dto: CreateEspecialidadDto, current_user: dict = Depends(requir
     return out
 
 
-@router.put("/{id}")
+@router.put(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": ESPECIALIDAD_NO_ENCONTRADA}},
+)
 async def update(id: str, request: Request, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("especialidades")
     dto = clean_update(await request.json())
@@ -140,9 +152,9 @@ async def update(id: str, request: Request, current_user: dict = Depends(require
         await col.update_one({"_id": ObjectId(id)}, {"$set": dto})
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Especialidad no encontrada")
+        raise HTTPException(status_code=404, detail=ESPECIALIDAD_NO_ENCONTRADA)
     out = serialize_doc(doc)
     try:
         await notify_updated("especialidad", out)
@@ -151,15 +163,18 @@ async def update(id: str, request: Request, current_user: dict = Depends(require
     return out
 
 
-@router.delete("/{id}")
+@router.delete(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": ESPECIALIDAD_NO_ENCONTRADA}},
+)
 async def delete(id: str, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     col = get_collection("especialidades")
     try:
         result = await col.delete_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Especialidad no encontrada")
+        raise HTTPException(status_code=404, detail=ESPECIALIDAD_NO_ENCONTRADA)
     try:
         await notify_deleted("especialidad", id)
     except Exception:

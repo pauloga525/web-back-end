@@ -10,6 +10,9 @@ from app.modules.websocket.manager import notify_created, notify_updated, notify
 
 router = APIRouter(prefix="/recursos", tags=["Recursos"])
 
+ID_INVALIDO = "ID inválido"
+RECURSO_NO_ENCONTRADO = "Recurso no encontrado"
+
 
 class UpdateRecursoDto(BaseModel):
     model_config = ConfigDict(extra='ignore')
@@ -50,15 +53,18 @@ async def find_all(current_user: dict = Depends(get_current_user)):
     return serialize_list(docs)
 
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": RECURSO_NO_ENCONTRADO}},
+)
 async def find_one(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("recursos")
     try:
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Recurso no encontrado")
+        raise HTTPException(status_code=404, detail=RECURSO_NO_ENCONTRADO)
     return serialize_doc(doc)
 
 
@@ -78,7 +84,10 @@ async def create(dto: CreateRecursoDto, current_user: dict = Depends(require_rol
     return out
 
 
-@router.put("/{id}")
+@router.put(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": RECURSO_NO_ENCONTRADO}},
+)
 async def update(id: str, dto: UpdateRecursoDto, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("recursos")
     data = clean_update(dto.model_dump(exclude_none=True))
@@ -87,9 +96,9 @@ async def update(id: str, dto: UpdateRecursoDto, current_user: dict = Depends(re
         await col.update_one({"_id": ObjectId(id)}, {"$set": data})
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Recurso no encontrado")
+        raise HTTPException(status_code=404, detail=RECURSO_NO_ENCONTRADO)
     out = serialize_doc(doc)
     try:
         await notify_updated("recurso", out)
@@ -98,15 +107,18 @@ async def update(id: str, dto: UpdateRecursoDto, current_user: dict = Depends(re
     return out
 
 
-@router.delete("/{id}")
+@router.delete(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": RECURSO_NO_ENCONTRADO}},
+)
 async def delete(id: str, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     col = get_collection("recursos")
     try:
         result = await col.delete_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Recurso no encontrado")
+        raise HTTPException(status_code=404, detail=RECURSO_NO_ENCONTRADO)
     try:
         await notify_deleted("recurso", id)
     except Exception:

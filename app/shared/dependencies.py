@@ -29,7 +29,7 @@ async def get_current_user(
 
 
 def require_roles(*roles: str):
-    async def checker(current_user: dict = Depends(get_current_user)):
+    def checker(current_user: dict = Depends(get_current_user)):
         if current_user.get("rol") not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permisos insuficientes")
         return current_user

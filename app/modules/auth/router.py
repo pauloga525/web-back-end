@@ -1,3 +1,4 @@
+from typing import Annotated
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from app.core.database import get_collection
@@ -14,7 +15,13 @@ class LoginDto(BaseModel):
     password: str
 
 
-@router.post("/login")
+@router.post(
+    "/login",
+    responses={
+        401: {"description": "Credenciales inválidas"},
+        403: {"description": "Usuario inactivo"},
+    },
+)
 async def login(dto: LoginDto):
     col = get_collection("users")
     user = await col.find_one({
@@ -44,7 +51,7 @@ async def login(dto: LoginDto):
 
 
 @router.get("/me")
-async def me(current_user: dict = Depends(get_current_user)):
+async def me(current_user: Annotated[dict, Depends(get_current_user)]):
     doc = serialize_doc(current_user)
     doc.pop("password", None)
     return doc
@@ -52,7 +59,7 @@ async def me(current_user: dict = Depends(get_current_user)):
 
 if settings.is_development:
     @router.get("/debug-token")
-    async def debug_token(current_user: dict = Depends(get_current_user)):
+    async def debug_token(current_user: Annotated[dict, Depends(get_current_user)]):
         return {
             "userId": current_user.get("id"),
             "username": current_user.get("username"),

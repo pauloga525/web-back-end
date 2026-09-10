@@ -10,6 +10,10 @@ from app.modules.websocket.manager import notify_created, notify_updated, notify
 
 router = APIRouter(prefix="/eventos", tags=["Eventos"])
 
+ID_INVALIDO = "ID inválido"
+EVENTO_NO_ENCONTRADO = "Evento no encontrado"
+REGEX_KEY = "$regex"
+
 
 class UpdateEventoDto(BaseModel):
     model_config = ConfigDict(extra='ignore')
@@ -74,15 +78,15 @@ async def find_publicos(
     mes: Optional[int] = Query(None),
     anio: Optional[int] = Query(None),
     pagina: int = Query(1),
-    porPagina: int = Query(10),
+    por_pagina: int = Query(10, alias="porPagina"),
 ):
     col = get_collection("eventos")
     query: dict = {"publicado": True}
 
     if q:
         query["$or"] = [
-            {"titulo": {"$regex": q, "$options": "i"}},
-            {"descripcionCorta": {"$regex": q, "$options": "i"}},
+            {"titulo": {REGEX_KEY: q, "$options": "i"}},
+            {"descripcionCorta": {REGEX_KEY: q, "$options": "i"}},
         ]
     if categoria:
         query["categoria"] = categoria
@@ -90,22 +94,22 @@ async def find_publicos(
         query["$expr"] = {"$eq": [{"$month": {"$dateFromString": {"dateString": "$fecha"}}}, mes]}
     if anio:
         prefix = str(anio)
-        query["fecha"] = {"$regex": f"^{prefix}"}
+        query["fecha"] = {REGEX_KEY: f"^{prefix}"}
 
     total = await col.count_documents(query)
-    skip = (pagina - 1) * porPagina
-    docs = await col.find(query).sort("fecha", -1).skip(skip).limit(porPagina).to_list(None)
+    skip = (pagina - 1) * por_pagina
+    docs = await col.find(query).sort("fecha", -1).skip(skip).limit(por_pagina).to_list(None)
 
     return {
         "items": serialize_list(docs),
         "total": total,
         "pagina": pagina,
-        "porPagina": porPagina,
-        "totalPaginas": (total + porPagina - 1) // porPagina,
+        "porPagina": por_pagina,
+        "totalPaginas": (total + por_pagina - 1) // por_pagina,
     }
 
 
-@router.get("/destacado")
+@router.get("/destacado", responses={404: {"description": "No hay evento destacado"}})
 async def find_destacado():
     col = get_collection("eventos")
     doc = await col.find_one({"destacado": True, "publicado": True}, sort=[("fecha", -1)])
@@ -116,12 +120,12 @@ async def find_destacado():
     return serialize_doc(doc)
 
 
-@router.get("/slug/{slug}")
+@router.get("/slug/{slug}", responses={404: {"description": EVENTO_NO_ENCONTRADO}})
 async def find_by_slug(slug: str):
     col = get_collection("eventos")
     doc = await col.find_one({"slug": slug})
     if not doc:
-        raise HTTPException(status_code=404, detail="Evento no encontrado")
+        raise HTTPException(status_code=404, detail=EVENTO_NO_ENCONTRADO)
     return serialize_doc(doc)
 
 
@@ -134,19 +138,22 @@ async def find_all(current_user: dict = Depends(get_current_user)):
     return serialize_list(docs)
 
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": EVENTO_NO_ENCONTRADO}},
+)
 async def find_one(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("eventos")
     try:
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Evento no encontrado")
+        raise HTTPException(status_code=404, detail=EVENTO_NO_ENCONTRADO)
     return serialize_doc(doc)
 
 
-@router.post("")
+@router.post("", responses={409: {"description": "El slug ya existe"}})
 async def create(dto: CreateEventoDto, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("eventos")
     data = dto.model_dump()
@@ -168,7 +175,10 @@ async def create(dto: CreateEventoDto, current_user: dict = Depends(require_role
     return out
 
 
-@router.put("/{id}")
+@router.put(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": EVENTO_NO_ENCONTRADO}},
+)
 async def update(id: str, dto: UpdateEventoDto, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("eventos")
     data = clean_update(dto.model_dump(exclude_none=True))
@@ -177,9 +187,9 @@ async def update(id: str, dto: UpdateEventoDto, current_user: dict = Depends(req
         await col.update_one({"_id": ObjectId(id)}, {"$set": data})
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Evento no encontrado")
+        raise HTTPException(status_code=404, detail=EVENTO_NO_ENCONTRADO)
     out = serialize_doc(doc)
     try:
         await notify_updated("evento", out)
@@ -188,15 +198,18 @@ async def update(id: str, dto: UpdateEventoDto, current_user: dict = Depends(req
     return out
 
 
-@router.delete("/{id}")
+@router.delete(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": EVENTO_NO_ENCONTRADO}},
+)
 async def delete(id: str, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     col = get_collection("eventos")
     try:
         result = await col.delete_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Evento no encontrado")
+        raise HTTPException(status_code=404, detail=EVENTO_NO_ENCONTRADO)
     try:
         await notify_deleted("evento", id)
     except Exception:
@@ -204,7 +217,10 @@ async def delete(id: str, current_user: dict = Depends(require_roles("super_admi
     return {"message": "Evento eliminado"}
 
 
-@router.patch("/{id}/destacado")
+@router.patch(
+    "/{id}/destacado",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": EVENTO_NO_ENCONTRADO}},
+)
 async def set_destacado(id: str, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("eventos")
     await col.update_many({}, {"$set": {"destacado": False}})
@@ -212,9 +228,9 @@ async def set_destacado(id: str, current_user: dict = Depends(require_roles("sup
         await col.update_one({"_id": ObjectId(id)}, {"$set": {"destacado": True, "updatedAt": datetime.now(timezone.utc)}})
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Evento no encontrado")
+        raise HTTPException(status_code=404, detail=EVENTO_NO_ENCONTRADO)
     out = serialize_doc(doc)
     try:
         await notify_updated("evento", out)
@@ -223,15 +239,18 @@ async def set_destacado(id: str, current_user: dict = Depends(require_roles("sup
     return out
 
 
-@router.patch("/{id}/toggle-publicado")
+@router.patch(
+    "/{id}/toggle-publicado",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": EVENTO_NO_ENCONTRADO}},
+)
 async def toggle_publicado(id: str, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("eventos")
     try:
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Evento no encontrado")
+        raise HTTPException(status_code=404, detail=EVENTO_NO_ENCONTRADO)
     nuevo_estado = not doc.get("publicado", False)
     await col.update_one({"_id": ObjectId(id)}, {"$set": {"publicado": nuevo_estado, "updatedAt": datetime.now(timezone.utc)}})
     doc = await col.find_one({"_id": ObjectId(id)})

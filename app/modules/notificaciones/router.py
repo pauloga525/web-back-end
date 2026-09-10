@@ -43,7 +43,10 @@ async def create(dto: CreateNotificacionDto, current_user: dict = Depends(requir
     return serialize_doc(doc)
 
 
-@router.patch("/{id}/leer")
+@router.patch(
+    "/{id}/leer",
+    responses={400: {"description": "ID inválido"}, 404: {"description": "Notificación no encontrada"}},
+)
 async def marcar_leida(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("notificaciones")
     try:
@@ -67,7 +70,10 @@ async def marcar_todas_leidas(current_user: dict = Depends(get_current_user)):
     return {"message": "Todas marcadas como leídas"}
 
 
-@router.delete("/{id}")
+@router.delete(
+    "/{id}",
+    responses={400: {"description": "ID inválido"}, 404: {"description": "Notificación no encontrada"}},
+)
 async def delete(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("notificaciones")
     try:

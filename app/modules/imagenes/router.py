@@ -10,18 +10,23 @@ from .service import process_and_store_image, fetch_and_store_image
 
 router = APIRouter(prefix="/imagenes", tags=["Imagenes"])
 
+CONTENT_TYPE_WEBP = "image/webp"
+
 
 @router.get("/health")
 async def health():
     return {"status": "ok", "service": "imagenes"}
 
 
-@router.post("")
+@router.post(
+    "",
+    responses={400: {"description": "Tipo de archivo no permitido o supera el límite de 15 MB"}},
+)
 async def upload_image(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
-    allowed = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"}
+    allowed = {"image/jpeg", "image/jpg", "image/png", CONTENT_TYPE_WEBP, "image/avif", "image/svg+xml"}
     if file.content_type not in allowed:
         raise HTTPException(status_code=400, detail="Tipo de archivo no permitido")
 
@@ -33,7 +38,10 @@ async def upload_image(
     return result
 
 
-@router.post("/from-url")
+@router.post(
+    "/from-url",
+    responses={400: {"description": "sourceUrl es requerido"}},
+)
 async def upload_from_url(
     body: dict = Body(...),
     current_user: dict = Depends(get_current_user),
@@ -46,7 +54,10 @@ async def upload_from_url(
     return result
 
 
-@router.get("/gridfs/{image_id}")
+@router.get(
+    "/gridfs/{image_id}",
+    responses={400: {"description": "ID de imagen inválido"}, 404: {"description": "Imagen no encontrada"}},
+)
 async def get_image(image_id: str):
     try:
         oid = ObjectId(image_id)
@@ -67,7 +78,7 @@ async def get_image(image_id: str):
         chunks.append(chunk)
 
     content = b"".join(chunks)
-    content_type = grid_out.metadata.get("contentType", "image/webp") if grid_out.metadata else "image/webp"
+    content_type = grid_out.metadata.get("contentType", CONTENT_TYPE_WEBP) if grid_out.metadata else CONTENT_TYPE_WEBP
 
     return StreamingResponse(
         io.BytesIO(content),

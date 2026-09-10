@@ -17,7 +17,10 @@ async def list_claves(current_user: dict = Depends(get_current_user)):
     return [{"_id": str(d["_id"]), "clave": d["clave"], "updatedAt": d.get("updatedAt")} for d in docs]
 
 
-@router.get("/publica/{clave}")
+@router.get(
+    "/publica/{clave}",
+    responses={404: {"description": "Configuración no encontrada"}},
+)
 async def get_publica(clave: str):
     col = get_collection("configuraciones")
     doc = await col.find_one({"clave": clave})
@@ -26,7 +29,10 @@ async def get_publica(clave: str):
     return serialize_doc(doc)
 
 
-@router.get("/{clave}")
+@router.get(
+    "/{clave}",
+    responses={404: {"description": "Configuración no encontrada"}},
+)
 async def get_config(clave: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("configuraciones")
     doc = await col.find_one({"clave": clave})
@@ -55,7 +61,10 @@ async def upsert_config(clave: str, request: Request, current_user: dict = Depen
     return out
 
 
-@router.delete("/{clave}")
+@router.delete(
+    "/{clave}",
+    responses={404: {"description": "Configuración no encontrada"}},
+)
 async def delete_config(clave: str, current_user: dict = Depends(require_roles("super_admin"))):
     col = get_collection("configuraciones")
     result = await col.delete_one({"clave": clave})
@@ -64,7 +73,10 @@ async def delete_config(clave: str, current_user: dict = Depends(require_roles("
     return {"message": f"Configuración '{clave}' eliminada"}
 
 
-@router.post("/imagenes")
+@router.post(
+    "/imagenes",
+    responses={400: {"description": "Tipo de archivo no permitido; Archivo supera el límite de 15 MB"}},
+)
 async def upload_imagen_config(
     file: UploadFile = File(...),
     current_user: dict = Depends(require_roles("super_admin", "admin", "editor")),

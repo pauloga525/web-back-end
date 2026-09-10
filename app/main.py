@@ -28,10 +28,10 @@ from app.modules.imagenes.router import router as imagenes_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await connect_db()
+    connect_db()
     await seed_admin()
     yield
-    await close_db()
+    close_db()
 
 
 async def seed_admin():
@@ -66,21 +66,17 @@ origins = settings.cors_origins_list
 
 if settings.is_development:
     # En desarrollo: acepta cualquier puerto de localhost/127.0.0.1
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    cors_kwargs = {"allow_origin_regex": r"https?://(localhost|127\.0\.0\.1)(:\d+)?"}
 else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    cors_kwargs = {"allow_origins": origins}
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    **cors_kwargs,
+)
 
 # ─── Routers con prefijo /api/v1 ──────────────────────────────────────────────
 

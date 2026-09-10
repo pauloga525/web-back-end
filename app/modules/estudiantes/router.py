@@ -9,6 +9,9 @@ from app.shared.responses import serialize_doc, serialize_list, clean_update
 
 router = APIRouter(prefix="/estudiantes", tags=["Estudiantes"])
 
+ID_INVALIDO = "ID inválido"
+ESTUDIANTE_NO_ENCONTRADO = "Estudiante no encontrado"
+
 
 class UpdateEstudianteDto(BaseModel):
     model_config = ConfigDict(extra='ignore')
@@ -56,19 +59,25 @@ async def find_all(current_user: dict = Depends(get_current_user)):
     return serialize_list(docs)
 
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": ESTUDIANTE_NO_ENCONTRADO}},
+)
 async def find_one(id: str, current_user: dict = Depends(get_current_user)):
     col = get_collection("estudiantes")
     try:
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+        raise HTTPException(status_code=404, detail=ESTUDIANTE_NO_ENCONTRADO)
     return serialize_doc(doc)
 
 
-@router.post("")
+@router.post(
+    "",
+    responses={409: {"description": "Cédula ya registrada"}},
+)
 async def create(dto: CreateEstudianteDto, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("estudiantes")
     existing = await col.find_one({"cedula": dto.cedula})
@@ -82,7 +91,10 @@ async def create(dto: CreateEstudianteDto, current_user: dict = Depends(require_
     return serialize_doc(doc)
 
 
-@router.put("/{id}")
+@router.put(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": ESTUDIANTE_NO_ENCONTRADO}},
+)
 async def update(id: str, dto: UpdateEstudianteDto, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("estudiantes")
     data = clean_update(dto.model_dump(exclude_none=True))
@@ -91,20 +103,23 @@ async def update(id: str, dto: UpdateEstudianteDto, current_user: dict = Depends
         await col.update_one({"_id": ObjectId(id)}, {"$set": data})
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+        raise HTTPException(status_code=404, detail=ESTUDIANTE_NO_ENCONTRADO)
     return serialize_doc(doc)
 
 
-@router.delete("/{id}")
+@router.delete(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": ESTUDIANTE_NO_ENCONTRADO}},
+)
 async def delete(id: str, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     col = get_collection("estudiantes")
     try:
         result = await col.delete_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+        raise HTTPException(status_code=404, detail=ESTUDIANTE_NO_ENCONTRADO)
     return {"message": "Estudiante eliminado"}
 

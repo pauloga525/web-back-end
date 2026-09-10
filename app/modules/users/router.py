@@ -9,6 +9,9 @@ from app.shared.responses import serialize_doc, serialize_list
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
+ID_INVALIDO = "ID inválido"
+USUARIO_NO_ENCONTRADO = "Usuario no encontrado"
+
 
 class CreateUserDto(BaseModel):
     nombre: str
@@ -43,21 +46,27 @@ async def list_users(current_user: dict = Depends(require_roles("super_admin", "
     return result
 
 
-@router.get("/{id}")
+@router.get(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": USUARIO_NO_ENCONTRADO}},
+)
 async def get_user(id: str, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     col = get_collection("users")
     try:
         doc = await col.find_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if not doc:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(status_code=404, detail=USUARIO_NO_ENCONTRADO)
     result = serialize_doc(doc)
     result.pop("password", None)
     return result
 
 
-@router.post("")
+@router.post(
+    "",
+    responses={409: {"description": "Username o email ya existe"}},
+)
 async def create_user(dto: CreateUserDto, current_user: dict = Depends(require_roles("super_admin"))):
     col = get_collection("users")
     existing = await col.find_one({"$or": [{"username": dto.username}, {"email": dto.email}]})
@@ -73,7 +82,13 @@ async def create_user(dto: CreateUserDto, current_user: dict = Depends(require_r
     return out
 
 
-@router.put("/{id}")
+@router.put(
+    "/{id}",
+    responses={
+        400: {"description": f"Sin datos para actualizar o {ID_INVALIDO}"},
+        404: {"description": USUARIO_NO_ENCONTRADO},
+    },
+)
 async def update_user(id: str, dto: UpdateUserDto, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     col = get_collection("users")
     data = {k: v for k, v in dto.model_dump().items() if v is not None}
@@ -84,23 +99,26 @@ async def update_user(id: str, dto: UpdateUserDto, current_user: dict = Depends(
     try:
         await col.update_one({"_id": ObjectId(id)}, {"$set": data})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     doc = await col.find_one({"_id": ObjectId(id)})
     if not doc:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(status_code=404, detail=USUARIO_NO_ENCONTRADO)
     out = serialize_doc(doc)
     out.pop("password", None)
     return out
 
 
-@router.delete("/{id}")
+@router.delete(
+    "/{id}",
+    responses={400: {"description": ID_INVALIDO}, 404: {"description": USUARIO_NO_ENCONTRADO}},
+)
 async def delete_user(id: str, current_user: dict = Depends(require_roles("super_admin"))):
     col = get_collection("users")
     try:
         result = await col.delete_one({"_id": ObjectId(id)})
     except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
+        raise HTTPException(status_code=400, detail=ID_INVALIDO)
     if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(status_code=404, detail=USUARIO_NO_ENCONTRADO)
     return {"message": "Usuario eliminado"}
 
