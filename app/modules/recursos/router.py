@@ -11,6 +11,12 @@ from app.modules.websocket.manager import notify_created, notify_updated, notify
 router = APIRouter(prefix="/recursos", tags=["Recursos"])
 
 
+class EnlaceRecursoDto(BaseModel):
+    """Un enlace adicional dentro de un recurso (ej: varios videos en un mismo instructivo)."""
+    url: str
+    descripcion: Optional[str] = ""
+
+
 class UpdateRecursoDto(BaseModel):
     model_config = ConfigDict(extra='ignore')
     titulo: Optional[str] = None
@@ -20,6 +26,7 @@ class UpdateRecursoDto(BaseModel):
     imagen: Optional[str] = None
     categoria: Optional[str] = None
     tags: Optional[List[str]] = None
+    enlaces: Optional[List[EnlaceRecursoDto]] = None
     publicado: Optional[bool] = None
     orden: Optional[int] = None
 
@@ -32,6 +39,7 @@ class CreateRecursoDto(BaseModel):
     imagen: Optional[str] = ""
     categoria: Optional[str] = ""
     tags: Optional[List[str]] = []
+    enlaces: Optional[List[EnlaceRecursoDto]] = []
     publicado: Optional[bool] = False
     orden: Optional[int] = 0
 
