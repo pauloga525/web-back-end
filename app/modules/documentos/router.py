@@ -78,5 +78,6 @@ async def get_documento(doc_id: str):
             # navegador (requisito: "que se pueda visualizar en la página
             # pública"), en vez de forzar la descarga.
             "Content-Disposition": f'inline; filename="{filename}"',
+            "X-Content-Type-Options": "nosniff",
         },
     )

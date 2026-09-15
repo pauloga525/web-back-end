@@ -21,9 +21,10 @@ class LoginDto(BaseModel):
 
 
 def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    # No se confía en X-Forwarded-For: es un header que el cliente controla
+    # libremente y, si se usa sin validar contra una lista de proxies de
+    # confianza, permite evadir el rate-limiter rotando un valor falso en
+    # cada intento. request.client.host es la IP real de la conexión TCP.
     return request.client.host if request.client else "unknown"
 
 
