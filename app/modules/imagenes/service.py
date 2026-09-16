@@ -47,8 +47,7 @@ def _assert_safe_url(url: str) -> None:
 async def process_and_store_image(data: bytes, filename: str, content_type: str) -> dict:
     original_bytes = len(data)
 
-    if content_type != "image/svg+xml":
-        data, content_type = _optimize(data)
+    data, content_type = _optimize(data)
 
     gridfs = get_gridfs()
     file_id = await gridfs.upload_from_stream(
@@ -114,4 +113,4 @@ def _optimize(data: bytes) -> tuple[bytes, str]:
         img.save(out, format="WEBP", quality=WEBP_QUALITY, method=6)
         return out.getvalue(), "image/webp"
     except Exception:
-        return data, "image/webp"
+        raise HTTPException(status_code=400, detail="El archivo no es una imagen válida")

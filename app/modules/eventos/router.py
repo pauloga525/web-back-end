@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Any
 from bson import ObjectId
 from datetime import datetime, timezone
+import re
 from app.core.database import get_collection
 from app.shared.dependencies import get_current_user, require_roles
 from app.shared.responses import serialize_doc, serialize_list, clean_update
@@ -80,9 +81,10 @@ async def find_publicos(
     query: dict = {"publicado": True}
 
     if q:
+        pattern = re.escape(q)
         query["$or"] = [
-            {"titulo": {"$regex": q, "$options": "i"}},
-            {"descripcionCorta": {"$regex": q, "$options": "i"}},
+            {"titulo": {"$regex": pattern, "$options": "i"}},
+            {"descripcionCorta": {"$regex": pattern, "$options": "i"}},
         ]
     if categoria:
         query["categoria"] = categoria

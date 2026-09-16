@@ -1,8 +1,9 @@
 import socketio
+from app.core.config import settings
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins="*",
+    cors_allowed_origins="*" if settings.is_development else settings.cors_origins_list,
     logger=False,
     engineio_logger=False,
 )

@@ -15,7 +15,7 @@ class CreateUserDto(BaseModel):
     apellido: str
     username: str
     email: str
-    password: str
+    password: str = Field(min_length=6)
     cargo: Optional[str] = ""
     rol: str = "viewer"
     status: str = "active"
@@ -26,7 +26,7 @@ class UpdateUserDto(BaseModel):
     apellido: Optional[str] = None
     username: Optional[str] = None
     email: Optional[str] = None
-    password: Optional[str] = None
+    password: Optional[str] = Field(default=None, min_length=6)
     cargo: Optional[str] = None
     rol: Optional[str] = None
     status: Optional[str] = None
@@ -84,6 +84,15 @@ async def update_user(id: str, dto: UpdateUserDto, current_user: dict = Depends(
         raise HTTPException(status_code=403, detail="Solo un super_admin puede cambiar el rol de un usuario")
 
     col = get_collection("users")
+
+    if current_user.get("rol") != "super_admin":
+        try:
+            target = await col.find_one({"_id": ObjectId(id)})
+        except Exception:
+            raise HTTPException(status_code=400, detail="ID inválido")
+        if target and target.get("rol") == "super_admin":
+            raise HTTPException(status_code=403, detail="Un admin no puede modificar a un super_admin")
+
     data = {k: v for k, v in dto.model_dump().items() if v is not None}
     if "password" in data:
         data["password"] = hash_password(data["password"])

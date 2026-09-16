@@ -4,7 +4,7 @@ from typing import Optional
 from bson import ObjectId
 from datetime import datetime, timezone
 from app.core.database import get_collection
-from app.shared.dependencies import get_current_user, require_roles
+from app.shared.dependencies import require_roles
 from app.shared.responses import serialize_doc, serialize_list, clean_update
 
 router = APIRouter(prefix="/estudiantes", tags=["Estudiantes"])
@@ -38,7 +38,7 @@ class CreateEstudianteDto(BaseModel):
 
 
 @router.get("/stats/por-especialidad")
-async def stats_por_especialidad(current_user: dict = Depends(get_current_user)):
+async def stats_por_especialidad(current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("estudiantes")
     pipeline = [
         {"$group": {"_id": "$especialidad", "total": {"$sum": 1}}},
@@ -50,14 +50,14 @@ async def stats_por_especialidad(current_user: dict = Depends(get_current_user))
 
 
 @router.get("")
-async def find_all(current_user: dict = Depends(get_current_user)):
+async def find_all(current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("estudiantes")
     docs = await col.find({}).sort("apellido", 1).to_list(None)
     return serialize_list(docs)
 
 
 @router.get("/{id}")
-async def find_one(id: str, current_user: dict = Depends(get_current_user)):
+async def find_one(id: str, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
     col = get_collection("estudiantes")
     try:
         doc = await col.find_one({"_id": ObjectId(id)})

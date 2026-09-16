@@ -4,7 +4,7 @@ from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Body
 from fastapi.responses import StreamingResponse
 from app.core.database import get_gridfs, get_collection
-from app.shared.dependencies import get_current_user
+from app.shared.dependencies import get_current_user, require_roles
 from app.core.config import settings
 from .service import process_and_store_image, fetch_and_store_image
 
@@ -21,7 +21,7 @@ async def upload_image(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
-    allowed = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"}
+    allowed = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"}
     if file.content_type not in allowed:
         raise HTTPException(status_code=400, detail="Tipo de archivo no permitido")
 
@@ -36,7 +36,7 @@ async def upload_image(
 @router.post("/from-url")
 async def upload_from_url(
     body: dict = Body(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_roles("super_admin", "admin", "editor")),
 ):
     source_url = body.get("sourceUrl") or body.get("source_url")
     if not source_url:
@@ -75,5 +75,6 @@ async def get_image(image_id: str):
         headers={
             "Cache-Control": "public, max-age=31536000, immutable",
             "Content-Length": str(len(content)),
+            "X-Content-Type-Options": "nosniff",
         },
     )

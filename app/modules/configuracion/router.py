@@ -87,7 +87,7 @@ async def upload_imagen_config(
     file: UploadFile = File(...),
     current_user: dict = Depends(require_roles("super_admin", "admin", "editor")),
 ):
-    allowed = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif", "image/svg+xml"}
+    allowed = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/avif"}
     if file.content_type not in allowed:
         raise HTTPException(status_code=400, detail="Tipo de archivo no permitido")
 
