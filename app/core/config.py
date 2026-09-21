@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     NODE_ENV: str = "development"
     BACKEND_URL: str = "http://localhost:8000"
 
+    # Controla /api/v1/docs, /redoc y /openapi.json de forma independiente
+    # del entorno: por defecto apagado (nadie puede verlos) aunque
+    # NODE_ENV sea development, hasta que se ponga explícitamente en true.
+    ENABLE_API_DOCS: bool = False
+
     MONGODB_URI: str = "mongodb://localhost:27017/uets_db"
 
     JWT_SECRET: str = "change_me_in_production"

@@ -55,9 +55,9 @@ async def seed_admin():
 app = FastAPI(
     title="UETS API",
     version="1.0.0",
-    docs_url="/api/v1/docs" if settings.is_development else None,
-    redoc_url="/api/v1/redoc" if settings.is_development else None,
-    openapi_url="/api/v1/openapi.json" if settings.is_development else None,
+    docs_url="/api/v1/docs" if settings.ENABLE_API_DOCS else None,
+    redoc_url="/api/v1/redoc" if settings.ENABLE_API_DOCS else None,
+    openapi_url="/api/v1/openapi.json" if settings.ENABLE_API_DOCS else None,
     lifespan=lifespan,
 )
 
