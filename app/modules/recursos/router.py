@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+﻿from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Body
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from bson import ObjectId
@@ -8,6 +8,7 @@ from app.shared.dependencies import get_current_user, require_roles
 from app.shared.responses import serialize_doc, serialize_list, clean_update
 from app.modules.websocket.manager import notify_created, notify_updated, notify_deleted
 from .excel_parser import parsear_tabla_excel, parsear_grafico_excel
+from .google_drive import descargar_excel_desde_google
 
 router = APIRouter(prefix="/recursos", tags=["Recursos"])
 
@@ -183,6 +184,43 @@ async def importar_tabla_boscometro(
     return out
 
 
+@router.post("/boscometro/tablas/desde-url")
+async def importar_tabla_boscometro_desde_url(
+    body: dict = Body(...),
+    current_user: dict = Depends(require_roles("super_admin", "admin", "editor")),
+):
+    titulo = body.get("titulo")
+    source_url = body.get("sourceUrl") or body.get("source_url")
+    if not titulo:
+        raise HTTPException(status_code=400, detail="titulo es requerido")
+    if not source_url:
+        raise HTTPException(status_code=400, detail="sourceUrl es requerido")
+
+    contenido = await descargar_excel_desde_google(source_url, EXCEL_MAX_BYTES)
+    try:
+        filas = parsear_tabla_excel(contenido)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo. Verifica que sea un Google Sheet o un Excel válido.")
+    if not filas:
+        raise HTTPException(status_code=400, detail="El archivo no tiene datos para importar.")
+
+    col = get_collection("recursos")
+    data = {
+        "titulo": titulo, "tipo": "boscometro_tabla", "descripcion": "", "url": "", "imagen": "",
+        "categoria": "", "tags": [], "enlaces": [], "filas": filas,
+        "publicado": True, "orden": await _siguiente_orden(col, "boscometro_tabla"),
+        "createdAt": datetime.now(timezone.utc), "updatedAt": datetime.now(timezone.utc),
+    }
+    result = await col.insert_one(data)
+    doc = await col.find_one({"_id": result.inserted_id})
+    out = serialize_doc(doc)
+    try:
+        await notify_created("recurso", out)
+    except Exception:
+        pass
+    return out
+
+
 @router.post("/boscometro/graficos")
 async def importar_grafico_boscometro(
     titulo: str = Form(...),
@@ -195,6 +233,44 @@ async def importar_grafico_boscometro(
         datos = parsear_grafico_excel(contenido)
     except Exception:
         raise HTTPException(status_code=400, detail="No se pudo leer el archivo Excel. Verifica que no esté dañado.")
+    if not datos:
+        raise HTTPException(status_code=400, detail="No se encontraron datos válidos (se esperan 2 columnas: curso y total).")
+
+    col = get_collection("recursos")
+    data = {
+        "titulo": titulo, "tipo": "boscometro_grafico", "descripcion": subtitulo, "url": "", "imagen": "",
+        "categoria": "", "tags": [], "enlaces": [], "datos": datos,
+        "publicado": True, "orden": await _siguiente_orden(col, "boscometro_grafico"),
+        "createdAt": datetime.now(timezone.utc), "updatedAt": datetime.now(timezone.utc),
+    }
+    result = await col.insert_one(data)
+    doc = await col.find_one({"_id": result.inserted_id})
+    out = serialize_doc(doc)
+    try:
+        await notify_created("recurso", out)
+    except Exception:
+        pass
+    return out
+
+
+@router.post("/boscometro/graficos/desde-url")
+async def importar_grafico_boscometro_desde_url(
+    body: dict = Body(...),
+    current_user: dict = Depends(require_roles("super_admin", "admin", "editor")),
+):
+    titulo = body.get("titulo")
+    subtitulo = body.get("subtitulo", "")
+    source_url = body.get("sourceUrl") or body.get("source_url")
+    if not titulo:
+        raise HTTPException(status_code=400, detail="titulo es requerido")
+    if not source_url:
+        raise HTTPException(status_code=400, detail="sourceUrl es requerido")
+
+    contenido = await descargar_excel_desde_google(source_url, EXCEL_MAX_BYTES)
+    try:
+        datos = parsear_grafico_excel(contenido)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo. Verifica que sea un Google Sheet o un Excel válido.")
     if not datos:
         raise HTTPException(status_code=400, detail="No se encontraron datos válidos (se esperan 2 columnas: curso y total).")
 
