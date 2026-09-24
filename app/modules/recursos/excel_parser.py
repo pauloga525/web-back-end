@@ -38,9 +38,9 @@ def _tiene_relleno(cell) -> bool:
     return rgb not in ("00000000", "FFFFFFFF")
 
 
-def parsear_tabla_excel(contenido: bytes) -> list[dict]:
+def parsear_tabla_excel(contenido: bytes, sheet_index: int = 0) -> list[dict]:
     wb = openpyxl.load_workbook(BytesIO(contenido), data_only=True)
-    ws = wb.worksheets[0]
+    ws = wb.worksheets[sheet_index]
 
     filas_crudas: list[dict] = []
     for row in ws.iter_rows():
@@ -67,9 +67,9 @@ def parsear_tabla_excel(contenido: bytes) -> list[dict]:
     return [{"valores": f["valores"][:max_col + 1], "esEncabezado": f["esEncabezado"]} for f in filas_crudas]
 
 
-def parsear_grafico_excel(contenido: bytes) -> list[dict]:
+def parsear_grafico_excel(contenido: bytes, sheet_index: int = 0) -> list[dict]:
     wb = openpyxl.load_workbook(BytesIO(contenido), data_only=True)
-    ws = wb.worksheets[0]
+    ws = wb.worksheets[sheet_index]
 
     datos: list[dict] = []
     for row in ws.iter_rows():

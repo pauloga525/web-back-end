@@ -40,6 +40,14 @@ async def _siguiente_orden(col, tipo: str) -> int:
     return (ultimo[0]["orden"] + 1) if ultimo else 0
 
 
+async def _siguiente_orden_seccion(col) -> int:
+    """Orden compartido por la tabla y el gráfico de una misma sección, para
+    poder ordenar secciones completas en el listado combinado del frontend."""
+    ultimo = await col.find({"tipo": {"$in": ["boscometro_tabla", "boscometro_grafico"]}}) \
+        .sort("orden", -1).limit(1).to_list(1)
+    return (ultimo[0]["orden"] + 1) if ultimo else 0
+
+
 class EnlaceRecursoDto(BaseModel):
     """Un enlace adicional dentro de un recurso (ej: varios videos en un mismo instructivo)."""
     url: str
@@ -289,4 +297,84 @@ async def importar_grafico_boscometro_desde_url(
     except Exception:
         pass
     return out
+
+
+ERROR_HOJAS_MSG = (
+    "El archivo debe tener 2 hojas: la primera con la tabla y la segunda "
+    "con los datos del gráfico (curso y total)."
+)
+
+
+async def _crear_seccion_boscometro(col, titulo: str, subtitulo: str, contenido: bytes) -> dict:
+    try:
+        filas = parsear_tabla_excel(contenido, sheet_index=0)
+        datos = parsear_grafico_excel(contenido, sheet_index=1)
+    except IndexError:
+        raise HTTPException(status_code=400, detail=ERROR_HOJAS_MSG)
+    except Exception:
+        raise HTTPException(status_code=400, detail="No se pudo leer el archivo. Verifica que no esté dañado.")
+    if not filas:
+        raise HTTPException(status_code=400, detail="La primera hoja no tiene datos para la tabla.")
+    if not datos:
+        raise HTTPException(status_code=400, detail="La segunda hoja no tiene datos válidos para el gráfico (se esperan 2 columnas: curso y total).")
+
+    seccion_id = str(ObjectId())
+    orden = await _siguiente_orden_seccion(col)
+    ahora = datetime.now(timezone.utc)
+
+    data_tabla = {
+        "titulo": titulo, "tipo": "boscometro_tabla", "descripcion": "", "url": "", "imagen": "",
+        "categoria": "", "tags": [], "enlaces": [], "filas": filas, "seccionId": seccion_id,
+        "publicado": True, "orden": orden, "createdAt": ahora, "updatedAt": ahora,
+    }
+    data_grafico = {
+        "titulo": titulo, "tipo": "boscometro_grafico", "descripcion": subtitulo, "url": "", "imagen": "",
+        "categoria": "", "tags": [], "enlaces": [], "datos": datos, "seccionId": seccion_id,
+        "publicado": True, "orden": orden, "createdAt": ahora, "updatedAt": ahora,
+    }
+
+    result_tabla = await col.insert_one(data_tabla)
+    result_grafico = await col.insert_one(data_grafico)
+    doc_tabla = await col.find_one({"_id": result_tabla.inserted_id})
+    doc_grafico = await col.find_one({"_id": result_grafico.inserted_id})
+    out_tabla = serialize_doc(doc_tabla)
+    out_grafico = serialize_doc(doc_grafico)
+
+    for out in (out_tabla, out_grafico):
+        try:
+            await notify_created("recurso", out)
+        except Exception:
+            pass
+
+    return {"tabla": out_tabla, "grafico": out_grafico}
+
+
+@router.post("/boscometro/secciones")
+async def importar_seccion_boscometro(
+    titulo: str = Form(...),
+    subtitulo: str = Form(""),
+    file: UploadFile = File(...),
+    current_user: dict = Depends(require_roles("super_admin", "admin", "editor")),
+):
+    contenido = await _leer_excel(file)
+    col = get_collection("recursos")
+    return await _crear_seccion_boscometro(col, titulo, subtitulo, contenido)
+
+
+@router.post("/boscometro/secciones/desde-url")
+async def importar_seccion_boscometro_desde_url(
+    body: dict = Body(...),
+    current_user: dict = Depends(require_roles("super_admin", "admin", "editor")),
+):
+    titulo = body.get("titulo")
+    subtitulo = body.get("subtitulo", "")
+    source_url = body.get("sourceUrl") or body.get("source_url")
+    if not titulo:
+        raise HTTPException(status_code=400, detail="titulo es requerido")
+    if not source_url:
+        raise HTTPException(status_code=400, detail="sourceUrl es requerido")
+
+    contenido = await descargar_excel_desde_google(source_url, EXCEL_MAX_BYTES)
+    col = get_collection("recursos")
+    return await _crear_seccion_boscometro(col, titulo, subtitulo, contenido)
 
