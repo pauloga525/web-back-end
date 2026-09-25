@@ -69,9 +69,11 @@ if settings.is_development:
     # En desarrollo: acepta cualquier puerto de localhost/127.0.0.1, y también
     # cualquier IP de red local (192.168.x.x, 10.x.x.x, 172.16-31.x.x) para
     # poder probar el sitio desde otro dispositivo en la misma red (celular,
-    # otra PC) mientras se desarrolla.
+    # otra PC) mientras se desarrolla. Además acepta los orígenes de
+    # CORS_ORIGINS (p. ej. https://uets.edu.ec).
     app.add_middleware(
         CORSMiddleware,
+        allow_origins=origins,
         allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?",
         allow_credentials=True,
         allow_methods=["*"],
