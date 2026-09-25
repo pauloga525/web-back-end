@@ -1,0 +1,29 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # El deploy no está aquí: el servidor lo hace solo con deploy/auto-deploy.sh.
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt ruff
+
+      - name: Lint (errores de sintaxis y nombres no definidos)
+        run: ruff check app run.py --select E9,F63,F7,F82
+
+      - name: Verificar que la app importa
+        run: python -c "import app.main"

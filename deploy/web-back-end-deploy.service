@@ -1,0 +1,16 @@
+# Ejecuta deploy/auto-deploy.sh una vez. Lo dispara web-back-end-deploy.timer.
+# Ver instrucciones en web-back-end-deploy.timer.
+
+[Unit]
+Description=UETS Backend - auto deploy desde git
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=oracle
+Group=oinstall
+Environment=APP_DIR=/home/oracle/Escritorio/WEB-UETS/web-back-end
+Environment=BRANCH=main
+Environment=SERVICE=web-back-end
+ExecStart=/bin/bash /home/oracle/Escritorio/WEB-UETS/web-back-end/deploy/auto-deploy.sh

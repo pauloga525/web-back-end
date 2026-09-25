@@ -1,0 +1,22 @@
+# Cada minuto revisa si hay commits nuevos en main y, si los hay, actualiza
+# el código y reinicia web-back-end.
+#
+# Instalación (en el servidor, como root):
+#   cp deploy/web-back-end-deploy.service deploy/web-back-end-deploy.timer /etc/systemd/system/
+#   systemctl daemon-reload
+#   systemctl enable --now web-back-end-deploy.timer
+#
+# Ver cuándo corrió y qué hizo:
+#   systemctl list-timers web-back-end-deploy.timer
+#   journalctl -u web-back-end-deploy -f
+
+[Unit]
+Description=UETS Backend - revisar git cada minuto
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=web-back-end-deploy.service
+
+[Install]
+WantedBy=timers.target
