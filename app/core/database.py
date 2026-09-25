@@ -17,7 +17,7 @@ async def connect_db():
     # documento de Mongo como haría un Base64 embebido), pero aparte para no
     # mezclar archivos binarios de distinto tipo en la misma colección.
     _gridfs_documentos = AsyncIOMotorGridFSBucket(_db, bucket_name="documentos")
-    print(f"MongoDB conectado: {settings.MONGODB_URI}")
+    print("MongoDB conectado")
 
 
 async def close_db():
