@@ -1,0 +1,35 @@
+# Plantilla de unidad systemd para correr el backend en segundo plano en el servidor.
+#
+# Instalación (en el servidor, como root o con sudo):
+#   1. Ajustá User=, WorkingDirectory= y la ruta del ExecStart más abajo si difieren
+#      de las tuyas (asumen que el repo vive en /home/<usuario>/web-back-end con un
+#      virtualenv en ./venv, igual que en desarrollo).
+#   2. sudo cp deploy/web-back-end.service /etc/systemd/system/web-back-end.service
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable --now web-back-end   # habilita en boot + arranca ahora
+#
+# Uso día a día:
+#   sudo systemctl status web-back-end
+#   sudo systemctl restart web-back-end
+#   sudo systemctl stop web-back-end
+#   sudo systemctl start web-back-end
+#   sudo journalctl -u web-back-end -f            # logs en vivo (reemplaza start_out.txt/start_err.txt)
+#
+# NODE_ENV=production (en el .env del repo) es lo que hace que run.py escuche solo en
+# 127.0.0.1 en vez de 0.0.0.0 — nginx delante hace de reverse proxy con TLS. No lo cambies
+# acá; se lee del .env del proyecto, no de esta unidad.
+
+[Unit]
+Description=UETS Backend (FastAPI/Uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=oracle
+WorkingDirectory=/home/deploy/web-back-end
+ExecStart=/home/deploy/web-back-end/venv/bin/python run.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
