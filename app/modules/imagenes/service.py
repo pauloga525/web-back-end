@@ -1,4 +1,5 @@
 import io
+import logging
 from datetime import datetime, timezone
 from PIL import Image
 import httpx
@@ -7,6 +8,7 @@ from app.core.database import get_gridfs
 from app.core.config import settings
 from app.shared.url_safety import assert_safe_url as _assert_safe_url
 
+logger = logging.getLogger(__name__)
 
 MAX_DIM = 1920
 WEBP_QUALITY = 82
@@ -82,5 +84,7 @@ def _optimize(data: bytes) -> tuple[bytes, str]:
         out = io.BytesIO()
         img.save(out, format="WEBP", quality=WEBP_QUALITY, method=6)
         return out.getvalue(), "image/webp"
-    except Exception:
-        raise HTTPException(status_code=400, detail="El archivo no es una imagen válida")
+    except Exception as e:
+        logger.exception("No se pudo procesar la imagen (%d bytes)", len(data))
+        # TODO(debug): quitar el str(e) del detail una vez diagnosticado el problema en el servidor.
+        raise HTTPException(status_code=400, detail=f"El archivo no es una imagen válida: {e!r}")
