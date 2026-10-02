@@ -26,6 +26,8 @@ from app.modules.consejo.router import router as consejo_router
 from app.modules.imagenes.router import router as imagenes_router
 from app.modules.documentos.router import router as documentos_router
 
+from fastapi.middleware.cors import CORSMiddleware
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -72,13 +74,16 @@ if settings.is_development:
     # otra PC) mientras se desarrolla. Además acepta los orígenes de
     # CORS_ORIGINS (p. ej. https://uets.edu.ec).
     app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_origin_regex=(
+                r"https?://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?"
+                r"|https://[a-z0-9-]+\.trycloudflare\.com"
+            ),
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 else:
     app.add_middleware(
         CORSMiddleware,
