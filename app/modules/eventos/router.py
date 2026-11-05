@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Any
 from bson import ObjectId
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import re
 from app.core.database import get_collection
 from app.shared.dependencies import get_current_user, require_roles
@@ -10,6 +10,23 @@ from app.shared.responses import serialize_doc, serialize_list, clean_update
 from app.modules.websocket.manager import notify_created, notify_updated, notify_deleted
 
 router = APIRouter(prefix="/eventos", tags=["Eventos"])
+
+# Ecuador (UTC-5, sin horario de verano). Fijo para no depender de tzdata.
+TZ_EC = timezone(timedelta(hours=-5))
+
+
+def _fin_evento(doc: dict) -> Optional[datetime]:
+    """Momento en que termina el evento (fecha + horaFin); None si la fecha es inválida."""
+    try:
+        d = datetime.strptime(doc.get("fecha", ""), "%Y-%m-%d")
+    except ValueError:
+        return None
+    h, m = 23, 59
+    try:
+        h, m = (int(x) for x in (doc.get("horaFin") or "23:59").split(":")[:2])
+    except ValueError:
+        pass
+    return d.replace(hour=h, minute=m, tzinfo=TZ_EC)
 
 
 class UpdateEventoDto(BaseModel):
@@ -25,6 +42,7 @@ class UpdateEventoDto(BaseModel):
     horaFin: Optional[str] = None
     ubicacion: Optional[str] = None
     direccion: Optional[str] = None
+    infoImportante: Optional[str] = None
     imagenPrincipal: Optional[str] = None
     galeria: Optional[List[str]] = None
     agenda: Optional[List[Any]] = None
@@ -58,6 +76,7 @@ class CreateEventoDto(BaseModel):
     horaFin: Optional[str] = "17:00"
     ubicacion: Optional[str] = ""
     direccion: Optional[str] = ""
+    infoImportante: Optional[str] = ""
     imagenPrincipal: Optional[str] = ""
     galeria: Optional[List[str]] = []
     agenda: Optional[List[Any]] = []
@@ -109,13 +128,16 @@ async def find_publicos(
 
 @router.get("/destacado")
 async def find_destacado():
+    """Evento principal automático: el publicado más próximo que aún no ha terminado."""
     col = get_collection("eventos")
-    doc = await col.find_one({"destacado": True, "publicado": True}, sort=[("fecha", -1)])
-    if not doc:
-        doc = await col.find_one({"publicado": True}, sort=[("fecha", -1)])
-    if not doc:
-        raise HTTPException(status_code=404, detail="No hay evento destacado")
-    return serialize_doc(doc)
+    ayer = (datetime.now(TZ_EC) - timedelta(days=1)).strftime("%Y-%m-%d")
+    docs = await col.find({"publicado": True, "fecha": {"$gte": ayer}}).sort("fecha", 1).to_list(None)
+    ahora = datetime.now(TZ_EC)
+    vigentes = [d for d in docs if (_fin_evento(d) or ahora - timedelta(days=1)) >= ahora]
+    if not vigentes:
+        raise HTTPException(status_code=404, detail="No hay eventos próximos")
+    vigentes.sort(key=lambda d: (d["fecha"], d.get("horaInicio") or ""))
+    return serialize_doc(vigentes[0])
 
 
 @router.get("/slug/{slug}")
@@ -206,26 +228,6 @@ async def delete(id: str, current_user: dict = Depends(require_roles("super_admi
     except Exception:
         pass
     return {"message": "Evento eliminado"}
-
-
-@router.patch("/{id}/destacado")
-async def set_destacado(id: str, current_user: dict = Depends(require_roles("super_admin", "admin", "editor"))):
-    col = get_collection("eventos")
-    await col.update_many({}, {"$set": {"destacado": False}})
-    try:
-        await col.update_one({"_id": ObjectId(id)}, {"$set": {"destacado": True, "updatedAt": datetime.now(timezone.utc)}})
-        doc = await col.find_one({"_id": ObjectId(id)})
-    except Exception:
-        raise HTTPException(status_code=400, detail="ID inválido")
-    if not doc:
-        raise HTTPException(status_code=404, detail="Evento no encontrado")
-    out = serialize_doc(doc)
-    if out.get("publicado"):
-        try:
-            await notify_updated("evento", out)
-        except Exception:
-            pass
-    return out
 
 
 @router.patch("/{id}/toggle-publicado")

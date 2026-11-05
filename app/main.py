@@ -8,6 +8,7 @@ from app.core.database import connect_db, close_db
 from app.core.security import hash_password
 from app.core.database import get_collection
 from app.modules.websocket.manager import sio
+from app.shared.auditoria import registrar as registrar_actividad, leer_body
 
 from app.modules.auth.router import router as auth_router
 from app.modules.users.router import router as users_router
@@ -92,6 +93,19 @@ else:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+# ─── Auditoría: registra actividad y notificaciones de cada escritura ───────────
+
+@app.middleware("http")
+async def auditoria_middleware(request, call_next):
+    body = await leer_body(request)
+    response = await call_next(request)
+    try:
+        await registrar_actividad(request, response.status_code, body)
+    except Exception as exc:  # la auditoría nunca debe romper la petición
+        print(f"auditoria: {exc}")
+    return response
+
 
 # ─── Routers con prefijo /api/v1 ──────────────────────────────────────────────
 

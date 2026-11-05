@@ -1,8 +1,8 @@
-﻿from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
 from bson import ObjectId
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from app.core.database import get_collection
 from app.shared.dependencies import get_current_user, require_roles
 from app.shared.responses import serialize_doc, serialize_list
@@ -29,7 +29,9 @@ async def find_recientes(current_user: dict = Depends(get_current_user)):
 @router.get("")
 async def find_all(current_user: dict = Depends(get_current_user)):
     col = get_collection("actividad")
-    docs = await col.find({}).sort("createdAt", -1).to_list(None)
+    # Purga automática: el historial conserva 30 días
+    await col.delete_many({"createdAt": {"$lt": datetime.now(timezone.utc) - timedelta(days=30)}})
+    docs = await col.find({}).sort("createdAt", -1).limit(500).to_list(None)
     return serialize_list(docs)
 
 
