@@ -6,6 +6,7 @@ from app.shared.dependencies import get_current_user, require_roles
 from app.shared.responses import serialize_doc, clean_update
 from app.modules.websocket.manager import notify_config_updated
 from app.modules.imagenes.service import process_and_store_image
+from app.shared.public_url import public_base_url
 
 router = APIRouter(prefix="/configuracion", tags=["Configuracion"])
 
@@ -84,6 +85,7 @@ async def delete_config(clave: str, current_user: dict = Depends(require_roles("
 
 @router.post("/imagenes")
 async def upload_imagen_config(
+    request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(require_roles("super_admin", "admin", "editor")),
 ):
@@ -95,4 +97,4 @@ async def upload_imagen_config(
     if len(data) > 15 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Archivo supera el límite de 15 MB")
 
-    return await process_and_store_image(data, file.filename or "config-imagen", file.content_type)
+    return await process_and_store_image(data, file.filename or "config-imagen", file.content_type, public_base_url(request))

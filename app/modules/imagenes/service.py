@@ -6,6 +6,7 @@ import httpx
 from fastapi import HTTPException
 from app.core.database import get_gridfs
 from app.core.config import settings
+from app.shared.public_url import public_base_url
 from app.shared.url_safety import assert_safe_url as _assert_safe_url
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ WEBP_QUALITY = 82
 MAX_REDIRECTS = 5
 
 
-async def process_and_store_image(data: bytes, filename: str, content_type: str) -> dict:
+async def process_and_store_image(data: bytes, filename: str, content_type: str, base_url: str | None = None) -> dict:
     original_bytes = len(data)
 
     data, content_type = _optimize(data)
@@ -33,7 +34,7 @@ async def process_and_store_image(data: bytes, filename: str, content_type: str)
     )
 
     str_id = str(file_id)
-    url = f"{settings.BACKEND_URL}/api/v1/imagenes/gridfs/{str_id}"
+    url = f"{base_url or public_base_url()}/api/v1/imagenes/gridfs/{str_id}"
 
     return {
         "url": url,
@@ -45,7 +46,7 @@ async def process_and_store_image(data: bytes, filename: str, content_type: str)
     }
 
 
-async def fetch_and_store_image(source_url: str) -> dict:
+async def fetch_and_store_image(source_url: str, base_url: str | None = None) -> dict:
     _assert_safe_url(source_url)
 
     url = source_url
@@ -67,7 +68,7 @@ async def fetch_and_store_image(source_url: str) -> dict:
     content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0].strip()
     filename = url.split("/")[-1].split("?")[0] or "imagen-remota"
 
-    return await process_and_store_image(resp.content, filename, content_type)
+    return await process_and_store_image(resp.content, filename, content_type, base_url)
 
 
 def _optimize(data: bytes) -> tuple[bytes, str]:

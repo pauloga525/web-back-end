@@ -1,10 +1,10 @@
 import io
 from datetime import datetime, timezone
 from app.core.database import get_gridfs_documentos
-from app.core.config import settings
+from app.shared.public_url import public_base_url
 
 
-async def store_document(data: bytes, filename: str, content_type: str) -> dict:
+async def store_document(data: bytes, filename: str, content_type: str, base_url: str | None = None) -> dict:
     """
     Guarda un documento (PDF/Word) tal cual en GridFS, sin intentar
     procesarlo como imagen. A diferencia de un Base64 embebido en un
@@ -24,7 +24,7 @@ async def store_document(data: bytes, filename: str, content_type: str) -> dict:
     )
 
     str_id = str(file_id)
-    url = f"{settings.BACKEND_URL}/api/v1/documentos/gridfs/{str_id}"
+    url = f"{base_url or public_base_url()}/api/v1/documentos/gridfs/{str_id}"
 
     return {
         "url": url,

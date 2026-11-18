@@ -1,11 +1,12 @@
 import io
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Body
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Body, Request
 from fastapi.responses import StreamingResponse
 from app.core.database import get_gridfs, get_collection
 from app.shared.dependencies import get_current_user, require_roles
 from app.core.config import settings
+from app.shared.public_url import public_base_url
 from .service import process_and_store_image, fetch_and_store_image
 
 router = APIRouter(prefix="/imagenes", tags=["Imagenes"])
@@ -18,6 +19,7 @@ async def health():
 
 @router.post("")
 async def upload_image(
+    request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
@@ -29,12 +31,13 @@ async def upload_image(
     if len(data) > 15 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="El archivo supera el límite de 15 MB")
 
-    result = await process_and_store_image(data, file.filename or "imagen", file.content_type)
+    result = await process_and_store_image(data, file.filename or "imagen", file.content_type, public_base_url(request))
     return result
 
 
 @router.post("/from-url")
 async def upload_from_url(
+    request: Request,
     body: dict = Body(...),
     current_user: dict = Depends(require_roles("super_admin", "admin", "editor")),
 ):
@@ -42,7 +45,7 @@ async def upload_from_url(
     if not source_url:
         raise HTTPException(status_code=400, detail="sourceUrl es requerido")
 
-    result = await fetch_and_store_image(source_url)
+    result = await fetch_and_store_image(source_url, public_base_url(request))
     return result
 
 

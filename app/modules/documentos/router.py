@@ -1,10 +1,11 @@
 import io
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.core.database import get_gridfs_documentos
 from app.shared.dependencies import get_current_user
+from app.shared.public_url import public_base_url
 from .service import store_document
 
 router = APIRouter(prefix="/documentos", tags=["Documentos"])
@@ -28,6 +29,7 @@ def _extension(filename: str) -> str:
 
 @router.post("")
 async def upload_documento(
+    request: Request,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ):
@@ -40,7 +42,7 @@ async def upload_documento(
         raise HTTPException(status_code=400, detail="El archivo supera el límite de 25 MB")
 
     content_type = CONTENT_TYPES.get(ext) or file.content_type or "application/octet-stream"
-    return await store_document(data, file.filename or f"documento{ext}", content_type)
+    return await store_document(data, file.filename or f"documento{ext}", content_type, public_base_url(request))
 
 
 @router.get("/gridfs/{doc_id}")
